@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0F172A">
+<meta name="description" content="Panel de administración — bitácora digital de accesos.">
+<title>Vigía · Panel de Administración</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='24' fill='%230F172A'/%3E%3Ccircle cx='50' cy='50' r='16' fill='%2334D399'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        },
+      },
+    },
+  };
+</script>
+</head>
+<body class="bg-slate-50 text-slate-900 font-sans antialiased min-h-screen flex flex-col">
+
+  <header class="bg-slate-900 text-white sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3 min-w-0">
+        <div class="w-9 h-9 rounded-xl bg-emerald-500/20 flex items-center justify-center shrink-0">
+          <div class="w-3.5 h-3.5 rounded-full bg-emerald-400"></div>
+        </div>
+        <div class="min-w-0">
+          <p class="font-bold text-[15px] sm:text-base">Vigía</p>
+          <p class="text-[11px] text-slate-400 truncate hidden sm:block">Panel de Administración</p>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+
+    <!-- Métricas -->
+    <section class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div class="bg-white rounded-2xl border border-slate-200 p-4">
+        <p class="text-xs text-slate-500 font-semibold">Total registros</p>
+        <p id="metrica-total" class="text-2xl font-bold mt-1">—</p>
+      </div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-4">
+        <p class="text-xs text-slate-500 font-semibold">Activos ahora</p>
+        <p id="metrica-activos" class="text-2xl font-bold mt-1 text-emerald-600">—</p>
+      </div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-4">
+        <p class="text-xs text-slate-500 font-semibold">Hoy</p>
+        <p id="metrica-hoy" class="text-2xl font-bold mt-1">—</p>
+      </div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-4">
+        <p class="text-xs text-slate-500 font-semibold">Con salida</p>
+        <p id="metrica-salidas" class="text-2xl font-bold mt-1">—</p>
+      </div>
+    </section>
+
+    <!-- Filtro y exportar -->
+    <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 sm:p-6 space-y-4">
+      <div class="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+        <div class="relative flex-1 max-w-md">
+          <input id="busqueda" type="search" placeholder="Buscar placa, visitante, destino..."
+            class="w-full h-12 pl-4 pr-4 rounded-2xl border border-slate-200 bg-slate-50 text-base placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none transition">
+        </div>
+        <button id="btn-exportar" type="button"
+          class="h-12 px-5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm transition shrink-0">
+          Descargar Excel
+        </button>
+      </div>
+      <p class="text-xs text-slate-400">API: <code id="api-base-mostrado" class="font-mono"></code></p>
+    </section>
+
+    <!-- Tabla -->
+    <section class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="px-5 py-4 border-b border-slate-100">
+        <h2 class="text-base font-bold">Historial de Accesos</h2>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 text-slate-500 text-left">
+            <tr>
+              <th class="px-4 py-3 font-semibold">Placa</th>
+              <th class="px-4 py-3 font-semibold">Visitante</th>
+              <th class="px-4 py-3 font-semibold">Tipo</th>
+              <th class="px-4 py-3 font-semibold">Destino</th>
+              <th class="px-4 py-3 font-semibold">Entrada</th>
+              <th class="px-4 py-3 font-semibold">Salida</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-body" class="divide-y divide-slate-100"></tbody>
+        </table>
+      </div>
+      <p id="vacio-historial" class="hidden text-center text-slate-400 text-sm py-10">No hay registros o no se pudo conectar al backend.</p>
+    </section>
+
+  </main>
+
+<script>
+  // ============================================================
+  // Vigía · Panel de Administración
+  // Cambia API_BASE por la URL de tu backend en Render.
+  // ============================================================
+  const API_BASE = 'http://localhost:8000';  // <-- cambia esto en producción
+
+  let historial = [];
+
+  function formatearFecha(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return d.toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  }
+
+  function esHoy(iso) {
+    const d = new Date(iso);
+    const hoy = new Date();
+    return d.toDateString() === hoy.toDateString();
+  }
+
+  async function cargarHistorial() {
+    try {
+      const resp = await fetch(`${API_BASE}/api/historial`);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      historial = await resp.json();
+      renderTabla();
+      renderMetricas();
+    } catch (err) {
+      console.error(err);
+      document.getElementById('vacio-historial').classList.remove('hidden');
+      document.getElementById('vacio-historial').textContent = 'No se pudo conectar al backend. Verifica la URL y que el servicio esté activo.';
+    }
+  }
+
+  function renderMetricas() {
+    const activos = historial.filter(v => !v.hora_salida).length;
+    const hoy = historial.filter(v => esHoy(v.hora_entrada)).length;
+    const salidas = historial.filter(v => v.hora_salida).length;
+    document.getElementById('metrica-total').textContent = historial.length;
+    document.getElementById('metrica-activos').textContent = activos;
+    document.getElementById('metrica-hoy').textContent = hoy;
+    document.getElementById('metrica-salidas').textContent = salidas;
+  }
+
+  function renderTabla(filtro = '') {
+    const q = filtro.trim().toLowerCase();
+    const data = q
+      ? historial.filter(v =>
+          (v.placa || '').toLowerCase().includes(q) ||
+          (v.visitante || '').toLowerCase().includes(q) ||
+          (v.destino || '').toLowerCase().includes(q) ||
+          (v.tipo || '').toLowerCase().includes(q)
+        )
+      : historial;
+
+    const tbody = document.getElementById('tabla-body');
+    const vacio = document.getElementById('vacio-historial');
+
+    if (data.length === 0) {
+      tbody.innerHTML = '';
+      vacio.classList.remove('hidden');
+      return;
+    }
+    vacio.classList.add('hidden');
+    tbody.innerHTML = data.map(v => `
+      <tr class="hover:bg-slate-50">
+        <td class="px-4 py-3 font-mono font-bold">${v.placa || '—'}</td>
+        <td class="px-4 py-3">${v.visitante || '—'}</td>
+        <td class="px-4 py-3">${v.tipo || '—'}</td>
+        <td class="px-4 py-3">${v.destino || '—'}</td>
+        <td class="px-4 py-3 text-slate-500">${formatearFecha(v.hora_entrada)}</td>
+        <td class="px-4 py-3 text-slate-500">${formatearFecha(v.hora_salida)}</td>
+      </tr>
+    `).join('');
+  }
+
+  document.getElementById('busqueda').addEventListener('input', (e) => {
+    renderTabla(e.target.value);
+  });
+
+  document.getElementById('btn-exportar').addEventListener('click', async () => {
+    try {
+      const ahora = new Date();
+      const primerDia = new Date(ahora.getFullYear(), ahora.getMonth(), 1).toISOString().slice(0, 10);
+      const ultimoDia = ahora.toISOString().slice(0, 10);
+      const resp = await fetch(`${API_BASE}/api/exportar?fecha_desde=${primerDia}&fecha_hasta=${ultimoDia}`);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `historial_accesos_${ultimoDia}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('No se pudo descargar el Excel. Verifica la conexión al backend.');
+    }
+  });
+
+  document.getElementById('api-base-mostrado').textContent = API_BASE;
+  cargarHistorial();
+</script>
+</body>
+</html>
