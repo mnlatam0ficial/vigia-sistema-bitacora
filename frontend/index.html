@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0F172A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="Bitácora digital de accesos: registro y control de entradas y salidas en caseta de vigilancia.">
+<title>Vigía · Control de Accesos</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='24' fill='%230F172A'/%3E%3Ccircle cx='50' cy='50' r='16' fill='%2334D399'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        },
+        keyframes: {
+          'fade-in-up': { '0%': { opacity: 0, transform: 'translateY(6px)' }, '100%': { opacity: 1, transform: 'translateY(0)' } },
+          'toast-in':   { '0%': { opacity: 0, transform: 'translateY(12px)' }, '100%': { opacity: 1, transform: 'translateY(0)' } },
+        },
+        animation: {
+          'fade-in-up': 'fade-in-up .3s ease-out',
+          'toast-in': 'toast-in .3s ease-out',
+        },
+      },
+    },
+  };
+</script>
+<style>
+  * { -webkit-tap-highlight-color: transparent; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(148,163,184,.4); border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(148,163,184,.7); }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-900 font-sans antialiased min-h-screen flex flex-col">
+
+  <!-- ============ HEADER ============ -->
+  <header class="bg-slate-900 text-white sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3 min-w-0">
+        <div class="w-9 h-9 rounded-xl bg-emerald-500/20 flex items-center justify-center shrink-0">
+          <div class="w-3.5 h-3.5 rounded-full bg-emerald-400"></div>
+        </div>
+        <div class="min-w-0">
+          <p class="font-bold text-[15px] sm:text-base truncate">Vigía</p>
+          <p class="text-[11px] text-slate-400 truncate hidden sm:block">Control de Accesos</p>
+        </div>
+      </div>
+      <div class="text-right shrink-0">
+        <p id="reloj" class="font-mono font-bold text-sm sm:text-base tracking-tight"></p>
+        <p id="fecha" class="text-[11px] text-slate-400"></p>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+
+    <!-- Formulario de entrada -->
+    <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 sm:p-6">
+      <h1 class="text-lg sm:text-xl font-bold mb-4">Registrar entrada</h1>
+      <form id="form-entrada" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="sm:col-span-2">
+          <label class="block text-xs font-semibold text-slate-500 mb-1.5">Placa *</label>
+          <input id="placa" type="text" required autocomplete="off" placeholder="ABC-123"
+            class="w-full h-12 px-4 rounded-2xl border border-slate-200 bg-slate-50 text-base font-mono font-bold uppercase tracking-wider placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none transition">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 mb-1.5">Visitante</label>
+          <input id="visitante" type="text" autocomplete="off" placeholder="Nombre del visitante"
+            class="w-full h-12 px-4 rounded-2xl border border-slate-200 bg-slate-50 text-base placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none transition">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 mb-1.5">Tipo *</label>
+          <select id="tipo" required
+            class="w-full h-12 px-4 rounded-2xl border border-slate-200 bg-slate-50 text-base focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none transition">
+            <option value="Visita">Visita</option>
+            <option value="Proveedor">Proveedor</option>
+            <option value="Empleado">Empleado</option>
+            <option value="Paquetería">Paquetería</option>
+          </select>
+        </div>
+        <div class="sm:col-span-2">
+          <label class="block text-xs font-semibold text-slate-500 mb-1.5">Destino</label>
+          <input id="destino" type="text" autocomplete="off" placeholder="Casa, oficina, etc."
+            class="w-full h-12 px-4 rounded-2xl border border-slate-200 bg-slate-50 text-base placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none transition">
+        </div>
+        <div class="sm:col-span-2">
+          <button type="submit"
+            class="w-full h-12 rounded-2xl bg-emerald-500 hover:bg-emerald-600 active:scale-[0.98] text-white font-bold text-base transition shadow-lg shadow-emerald-500/25">
+            Registrar entrada
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Vehículos activos -->
+    <section>
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-base font-bold">Vehículos activos</h2>
+        <span id="contador-activos" class="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">0</span>
+      </div>
+      <div id="lista-activos" class="space-y-3"></div>
+      <p id="vacio-activos" class="hidden text-center text-slate-400 text-sm py-10">No hay vehículos dentro en este momento.</p>
+    </section>
+
+  </main>
+
+  <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 hidden"></div>
+
+<script>
+  // ============================================================
+  // Vigía · Frontend caseta — Fase 1 (datos locales)
+  // Los bloques // TODO marcan dónde conectará la API de FastAPI
+  // de la Fase 2: POST /api/entradas · PUT /api/salidas/{id}
+  // GET /api/vehiculos-activos
+  // ============================================================
+
+  let vehiculos = JSON.parse(localStorage.getItem('vigia_vehiculos') || '[]');
+  let nextId = Number(localStorage.getItem('vigia_next_id') || '1');
+
+  function guardar() {
+    localStorage.setItem('vigia_vehiculos', JSON.stringify(vehiculos));
+    localStorage.setItem('vigia_next_id', String(nextId));
+  }
+
+  function toast(msg, tipo = 'ok') {
+    const el = document.getElementById('toast');
+    el.className = 'fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl text-sm font-semibold shadow-lg animate-toast-in ' +
+      (tipo === 'ok' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white');
+    el.textContent = msg;
+    el.classList.remove('hidden');
+    setTimeout(() => el.classList.add('hidden'), 2800);
+  }
+
+  function formatearHora(iso) {
+    const d = new Date(iso);
+    return d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function tiempoTranscurrido(iso) {
+    const mins = Math.floor((Date.now() - new Date(iso)) / 60000);
+    if (mins < 60) return mins + ' min';
+    const h = Math.floor(mins / 60);
+    return h + 'h ' + (mins % 60) + 'm';
+  }
+
+  function render({ animarNuevo } = {}) {
+    const activos = vehiculos.filter(v => !v.hora_salida);
+    document.getElementById('contador-activos').textContent = activos.length;
+    const lista = document.getElementById('lista-activos');
+    const vacio = document.getElementById('vacio-activos');
+    if (activos.length === 0) {
+      lista.innerHTML = '';
+      vacio.classList.remove('hidden');
+      return;
+    }
+    vacio.classList.add('hidden');
+    lista.innerHTML = activos.map(v => `
+      <div class="bg-white rounded-2xl border border-slate-200 p-4 flex items-center gap-4 ${animarNuevo === v.id ? 'animate-fade-in-up' : ''}" data-id="${v.id}">
+        <div class="flex-1 min-w-0">
+          <p class="font-mono font-bold text-lg tracking-wide">${v.placa}</p>
+          <p class="text-sm text-slate-500 truncate">${v.visitante || '—'} · ${v.tipo}${v.destino ? ' · ' + v.destino : ''}</p>
+          <p class="text-xs text-slate-400 mt-0.5">Entrada ${formatearHora(v.hora_entrada)} · <span class="tiempo" data-entrada="${v.hora_entrada}">${tiempoTranscurrido(v.hora_entrada)}</span></p>
+        </div>
+        <button type="button" onclick="registrarSalida(${v.id})"
+          class="shrink-0 h-11 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold transition">
+          Salida
+        </button>
+      </div>
+    `).join('');
+  }
+
+  document.getElementById('form-entrada').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const placa = document.getElementById('placa').value.trim().toUpperCase();
+    if (!placa) return;
+    const nuevoVehiculo = {
+      id: nextId++,
+      placa,
+      visitante: document.getElementById('visitante').value.trim() || null,
+      tipo: document.getElementById('tipo').value,
+      destino: document.getElementById('destino').value.trim() || null,
+      hora_entrada: new Date().toISOString(),
+      hora_salida: null,
+    };
+    // TODO (Fase 2): reemplazar por
+    // fetch('/api/entradas', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(nuevoVehiculo) })
+    vehiculos.unshift(nuevoVehiculo);
+    guardar();
+    render({ animarNuevo: nuevoVehiculo.id });
+    e.target.reset();
+    document.getElementById('placa').focus();
+    toast('Entrada registrada');
+  });
+
+  function registrarSalida(id) {
+    const v = vehiculos.find(x => x.id === id);
+    if (!v || v.hora_salida) return;
+    // TODO (Fase 2): reemplazar por fetch(`/api/salidas/${id}`, { method: 'PUT' })
+    v.hora_salida = new Date().toISOString();
+    guardar();
+    render();
+    toast('Salida registrada');
+  }
+
+  function actualizarReloj() {
+    const ahora = new Date();
+    document.getElementById('reloj').textContent = ahora.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    document.getElementById('fecha').textContent = ahora.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' });
+  }
+
+  function actualizarTiemposTranscurridos() {
+    document.querySelectorAll('.tiempo').forEach(el => {
+      el.textContent = tiempoTranscurrido(el.dataset.entrada);
+    });
+  }
+
+  actualizarReloj();
+  setInterval(actualizarReloj, 1000);
+  render();
+  setInterval(actualizarTiemposTranscurridos, 30000);
+</script>
+</body>
+</html>
