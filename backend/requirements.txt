@@ -3,6 +3,6 @@ uvicorn[standard]
 sqlalchemy
 pydantic
 python-dotenv
-pandas
-openpyxl
+# pandas
+# openpyxl
 psycopg2-binary

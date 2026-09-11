@@ -11,7 +11,7 @@ import io
 import os
 from datetime import datetime
 
-import pandas as pd
+# import pandas as pd  # deshabilitado en Termux; export usa csv stdlib
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -78,34 +78,41 @@ class KillSwitchMiddleware(BaseHTTPMiddleware):
                 status_code=402,
                 content={
                     "error": "servicio_suspendido",
-                    "mensaje": "El servicio está suspendido por falta de pago. Contacta al proveedor.",
+                    "mensaje": "El servicio está suspendido por falta de pago. Contacta a soporte para reactivar tu suscripción.",
                     "status": suscripcion.status if suscripcion else "sin_configurar",
                 },
             )
+
         return await call_next(request)
 
 
-app = FastAPI(
-    title="Vigía API",
-    description="Bitácora digital de accesos — registro de entradas y salidas",
-    version="1.0.0",
-)
+# ---------------------------------------------------------------------------
+# App
+# ---------------------------------------------------------------------------
+app = FastAPI(title="Vigía API", description="Bitácora digital de accesos", version="0.2.0")
 
+# Orden importante: KillSwitch se agrega PRIMERO para que quede como capa
+# interna, y CORS se agrega DESPUÉS para quedar como capa externa. Así, los
+# headers CORS se aplican incluso a los 402 que corta el kill switch — si
+# el orden fuera al revés, el navegador del frontend vería un error de CORS
+# genérico en vez del mensaje real de "servicio suspendido".
+app.add_middleware(KillSwitchMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=["*"],  # en producción: restringe a tu dominio de Netlify/Vercel
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.add_middleware(KillSwitchMiddleware)
 
 
 def verificar_admin(x_admin_key: str = Header(default="")):
     if x_admin_key != ADMIN_API_KEY:
-        raise HTTPException(status_code=401, detail="Clave de administrador inválida")
+        raise HTTPException(status_code=403, detail="No autorizado")
 
 
+# ---------------------------------------------------------------------------
+# Endpoints — Bitácora
+# ---------------------------------------------------------------------------
 @app.post("/api/entradas", response_model=VehiculoOut, status_code=201)
 def registrar_entrada(datos: EntradaCreate, db: Session = Depends(get_db)):
     vehiculo = VehiculoAcceso(
@@ -127,7 +134,8 @@ def registrar_salida(vehiculo_id: int, db: Session = Depends(get_db)):
     if not vehiculo:
         raise HTTPException(status_code=404, detail="Vehículo no encontrado")
     if vehiculo.hora_salida is not None:
-        raise HTTPException(status_code=400, detail="Este vehículo ya tiene salida registrada")
+        raise HTTPException(status_code=409, detail="Este vehículo ya registró su salida")
+
     vehiculo.hora_salida = datetime.utcnow()
     db.commit()
     db.refresh(vehiculo)
@@ -146,19 +154,22 @@ def vehiculos_activos(db: Session = Depends(get_db)):
 
 @app.get("/api/historial", response_model=list[VehiculoOut])
 def historial(db: Session = Depends(get_db)):
-    return (
-        db.query(VehiculoAcceso)
-        .order_by(VehiculoAcceso.hora_entrada.desc())
-        .all()
-    )
+    """Historial completo (activos + con salida). Lo usa el panel de
+    administración (Fase 3) para la tabla y las métricas; el filtrado por
+    placa/visitante/fecha se hace en el propio frontend, en tiempo real."""
+    return db.query(VehiculoAcceso).order_by(VehiculoAcceso.hora_entrada.desc()).all()
 
 
+# ---------------------------------------------------------------------------
+# Endpoint — Exportación a Excel
+# ---------------------------------------------------------------------------
 @app.get("/api/exportar")
 def exportar_historial(
     fecha_desde: str | None = None,
     fecha_hasta: str | None = None,
     db: Session = Depends(get_db),
 ):
+    import csv
     query = db.query(VehiculoAcceso)
     if fecha_desde:
         query = query.filter(VehiculoAcceso.hora_entrada >= datetime.fromisoformat(fecha_desde))
@@ -166,28 +177,24 @@ def exportar_historial(
         query = query.filter(VehiculoAcceso.hora_entrada <= datetime.fromisoformat(f"{fecha_hasta}T23:59:59"))
     vehiculos = query.order_by(VehiculoAcceso.hora_entrada.desc()).all()
 
-    df = pd.DataFrame([{
-        "Placa": v.placa,
-        "Visitante": v.visitante or "",
-        "Tipo": v.tipo,
-        "Destino": v.destino or "",
-        "Hora Entrada": v.hora_entrada,
-        "Hora Salida": v.hora_salida,
-    } for v in vehiculos])
-
-    buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name="Historial")
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(["Placa", "Visitante", "Tipo", "Destino", "Hora Entrada", "Hora Salida"])
+    for v in vehiculos:
+        writer.writerow([v.placa, v.visitante or "", v.tipo, v.destino or "", v.hora_entrada, v.hora_salida])
     buffer.seek(0)
 
-    nombre_archivo = f"historial_accesos_{datetime.utcnow():%Y%m%d}.xlsx"
+    nombre_archivo = f"historial_accesos_{datetime.utcnow():%Y%m%d}.csv"
     return StreamingResponse(
-        buffer,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        iter([buffer.getvalue()]),
+        media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f"attachment; filename={nombre_archivo}"},
     )
 
 
+# ---------------------------------------------------------------------------
+# Endpoints — Suscripción (uso del vendedor del software, no del cliente)
+# ---------------------------------------------------------------------------
 @app.get("/api/estado-suscripcion", response_model=SuscripcionOut)
 def estado_suscripcion(db: Session = Depends(get_db)):
     suscripcion = db.query(Suscripcion).order_by(Suscripcion.id.desc()).first()
